@@ -54,7 +54,7 @@ public:
         std::string nick = parameters[1];
         std::string text = parameters[2];
 
-        if (!user->HasPrivPermission("users/relaymsg"))
+        if (IS_LOCAL(user) && !user->HasPrivPermission("users/relaymsg"))
         {
             user->WriteNotice("*** You need the users/relaymsg permission to use this command.");
             return CMD_FAILURE;
@@ -93,7 +93,7 @@ public:
         }
 
         // Check that the target nick matches relay nick glob
-        if (!InspIRCd::Match(nick, nick_glob))
+        if (IS_LOCAL(user) && !InspIRCd::Match(nick, nick_glob))
         {
             user->WriteNumeric(ERR_ERRONEUSNICKNAME, nick, InspIRCd::Format("Fake nickname must match nickglob %s", nick_glob.c_str()));
             return CMD_FAILURE;
@@ -111,9 +111,9 @@ public:
             CommandBase::Params params;
             params.push_back(channame);
             params.push_back(nick);
-            params.push_back(text);
+            params.push_back(":" + text);
 
-            ServerInstance->PI->SendEncapsulatedData("*", "RELAYMSG", params);
+            ServerInstance->PI->SendEncapsulatedData("*", "RELAYMSG", params, user);
         }
 
         return CMD_SUCCESS;
