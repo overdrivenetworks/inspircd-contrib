@@ -19,12 +19,33 @@
 /// $ModAuthor: jlu5
 /// $ModAuthorMail: james@overdrivenetworks.com
 /// $ModDepends: core 3
-/// $ModDesc: Provides the RELAYMSG command for stateless bridging
+/// $ModDesc: rovides the RELAYMSG command & overdrivenetworks.com/relaymsg capability for stateless bridging
 
 #include "inspircd.h"
+#include "modules/cap.h"
+#include "modules/ircv3.h"
+
+class RelayMsgCapTag : public ClientProtocol::MessageTagProvider {
+  private:
+    Cap::Capability& cap;
+
+  public:
+    RelayMsgCapTag(Module* mod, Cap::Capability& Cap)
+        : ClientProtocol::MessageTagProvider(mod)
+        , cap(Cap)
+    {
+    }
+
+    bool ShouldSendTag(LocalUser* user, const ClientProtocol::MessageTagData& tagdata) CXX11_OVERRIDE
+    {
+        return cap.get(user);
+    }
+};
 
 class CommandRelayMsg : public Command {
 private:
+    Cap::Capability& cap;
+    RelayMsgCapTag& captag;
     std::bitset<UCHAR_MAX> invalid_chars_map;
     std::string invalid_chars = "!+%@&#$:'\"?*,.";
 
@@ -33,7 +54,10 @@ public:
     std::string fake_ident;
     std::string nick_glob;
 
-    CommandRelayMsg(Module* parent) : Command(parent, "RELAYMSG", 3, 3)
+    CommandRelayMsg(Module* parent, Cap::Capability& Cap, RelayMsgCapTag& Captag)
+        : Command(parent, "RELAYMSG", 3, 3)
+        , cap(Cap)
+        , captag(Captag)
     {
         flags_needed = 'o';
         syntax = "<channel> <nick> <text>";
@@ -55,6 +79,10 @@ public:
         std::string nick = parameters[1];
         std::string text = parameters[2];
 
+        // Check that the source has the relaymsg capability.
+        if (IS_LOCAL(user) && !cap.get(user)) {
+            return CMD_FAILURE;
+        }
 
         Channel* channel = ServerInstance->FindChan(channame);
         // Make sure the channel exists and the sender is in the channel
@@ -97,8 +125,9 @@ public:
 
         // Send the message to everyone in the channel
         std::string fakeSource = GetFakeHostmask(nick);
-        // TODO: preserve message tags sent by caller?
         ClientProtocol::Messages::Privmsg privmsg(fakeSource, channel, text);
+        // Tag the message as @relaymsg=<nick> so the sender can recognize it
+        privmsg.AddTag("relaymsg", &captag, user->nick);
         channel->Write(ServerInstance->GetRFCEvents().privmsg, privmsg);
 
         if (IS_LOCAL(user))
@@ -118,17 +147,16 @@ public:
 
 class ModuleRelayMsg : public Module
 {
+    Cap::Capability cap;
+    RelayMsgCapTag captag;
     CommandRelayMsg cmd;
 
 public:
     ModuleRelayMsg() :
-        cmd(this)
+        cap(this, "overdrivenetworks.com/relaymsg"),
+        captag(this, cap),
+        cmd(this, cap, captag)
     {
-    }
-
-    void On005Numeric(std::map<std::string, std::string>& tokens) CXX11_OVERRIDE
-    {
-        tokens["RELAYMSG"];
     }
 
     void ReadConfig(ConfigStatus& status) CXX11_OVERRIDE
