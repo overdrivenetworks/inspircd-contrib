@@ -19,11 +19,16 @@
 /// $ModAuthor: jlu5
 /// $ModAuthorMail: james@overdrivenetworks.com
 /// $ModDepends: core 3
-/// $ModDesc: rovides the RELAYMSG command & overdrivenetworks.com/relaymsg capability for stateless bridging
+/// $ModDesc: Provides the RELAYMSG command & overdrivenetworks.com/relaymsg capability for stateless bridging
 
 #include "inspircd.h"
 #include "modules/cap.h"
 #include "modules/ircv3.h"
+
+enum
+{
+    ERR_BADRELAYNICK = 573  // from ERR_CANNOTSENDRP in Oragono
+};
 
 class RelayMsgCapTag : public ClientProtocol::MessageTagProvider {
   private:
@@ -100,7 +105,7 @@ public:
         // Check that target nick is not already in use
         if (ServerInstance->FindNick(nick))
         {
-            user->WriteNumeric(ERR_NICKNAMEINUSE, nick, "Nickname is already in use.");
+            user->WriteNumeric(ERR_BADRELAYNICK, nick, "RELAYMSG spoofed nick is already in use");
             return CMD_FAILURE;
         }
 
@@ -111,7 +116,7 @@ public:
         {
             if (invalid_chars_map.test(static_cast<unsigned char>(*x)))
             {
-                user->WriteNumeric(ERR_ERRONEUSNICKNAME, nick, "Invalid characters in spoofed nick");
+                user->WriteNumeric(ERR_BADRELAYNICK, nick, "Invalid characters in spoofed nick");
                 return CMD_FAILURE;
             }
         }
@@ -119,7 +124,7 @@ public:
         // Check that the target nick matches relay nick glob
         if (IS_LOCAL(user) && !InspIRCd::Match(nick, nick_glob))
         {
-            user->WriteNumeric(ERR_ERRONEUSNICKNAME, nick, InspIRCd::Format("Fake nickname must match nickglob %s", nick_glob.c_str()));
+            user->WriteNumeric(ERR_BADRELAYNICK, nick, InspIRCd::Format("Spoofed nickname must match nickglob %s", nick_glob.c_str()));
             return CMD_FAILURE;
         }
 
