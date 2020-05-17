@@ -35,6 +35,7 @@ public:
 
     CommandRelayMsg(Module* parent) : Command(parent, "RELAYMSG", 3, 3)
     {
+        flags_needed = 'o';
         syntax = "<channel> <nick> <text>";
         allow_empty_last_param = false;
 
@@ -54,11 +55,6 @@ public:
         std::string nick = parameters[1];
         std::string text = parameters[2];
 
-        if (IS_LOCAL(user) && !user->HasPrivPermission("users/relaymsg"))
-        {
-            user->WriteNotice("*** You need the users/relaymsg permission to use this command.");
-            return CMD_FAILURE;
-        }
 
         Channel* channel = ServerInstance->FindChan(channame);
         // Make sure the channel exists and the sender is in the channel
