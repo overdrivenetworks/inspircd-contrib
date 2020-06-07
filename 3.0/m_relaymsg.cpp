@@ -175,7 +175,7 @@ public:
         {
             throw ModuleException("Invalid ident value for <relaymsg>");
         }
-        if (!ServerInstance->IsIdent(cmd.fake_host))
+        if (!ServerInstance->IsHost(cmd.fake_host))
         {
             throw ModuleException("Invalid host value for <relaymsg>");
         }
