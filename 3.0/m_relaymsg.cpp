@@ -20,7 +20,7 @@
 /// $ModAuthorMail: james@overdrivenetworks.com
 /// $ModDepends: core 3
 /// $ModDesc: Provides the RELAYMSG command & overdrivenetworks.com/relaymsg capability for stateless bridging
-/// $ModConfig: <relaymsg separator="/" ident="relay" host="relay.example.com">
+/// $ModConfig: <relaymsg separators="/" ident="relay" host="relay.example.com">
 //  The "host" option defaults to the local server hostname if not set.
 
 #include "inspircd.h"
@@ -35,11 +35,11 @@ enum
 // Registers the overdrivenetworks.com/relaymsg
 class RelayMsgCap : public Cap::Capability {
 public:
-    std::string nick_separator;
+    std::string nick_separators;
 
     const std::string* GetValue(LocalUser* user) const CXX11_OVERRIDE
     {
-        return &nick_separator;
+        return &nick_separators;
     }
 
     RelayMsgCap(Module* mod)
@@ -140,11 +140,20 @@ public:
             }
         }
 
-        // Check that the target includes a nick separator
-        if (IS_LOCAL(user) && nick.find(cap.nick_separator) == std::string::npos)
+        // If the sender was a lcoal user, check that the target includes a nick separator
+        if (IS_LOCAL(user))
         {
-            user->WriteNumeric(ERR_BADRELAYNICK, nick, InspIRCd::Format("Spoofed nickname must include separator %s", cap.nick_separator.c_str()));
-            return CMD_FAILURE;
+            bool accepted = false;
+            for (std::string::const_iterator x = cap.nick_separators.begin(); x != cap.nick_separators.end(); x++) {
+                if (nick.find(*x) != std::string::npos) {
+                    accepted = true;
+                }
+            }
+            if (!accepted)
+            {
+                user->WriteNumeric(ERR_BADRELAYNICK, nick, InspIRCd::Format("Spoofed nickname must include one of the following separators: %s", cap.nick_separators.c_str()));
+                return CMD_FAILURE;
+            }
         }
 
         // Send the message to everyone in the channel
@@ -186,7 +195,7 @@ public:
     void ReadConfig(ConfigStatus& status) CXX11_OVERRIDE
     {
         ConfigTag* tag = ServerInstance->Config->ConfValue("relaymsg");
-        cap.nick_separator = tag->getString("separator", "/");
+        cap.nick_separators = tag->getString("separators", "/");
         cmd.fake_ident = tag->getString("ident", "relay");
         cmd.fake_host = tag->getString("host", ServerInstance->Config->ServerName);
 
