@@ -20,6 +20,8 @@
 /// $ModAuthorMail: james@overdrivenetworks.com
 /// $ModDepends: core 3
 /// $ModDesc: Provides the RELAYMSG command & overdrivenetworks.com/relaymsg capability for stateless bridging
+/// $ModConfig: <relaymsg separator="/" ident="relay" host="relay.example.com">
+//  The "host" option defaults to the local server hostname if not set.
 
 #include "inspircd.h"
 #include "modules/cap.h"
@@ -30,12 +32,29 @@ enum
     ERR_BADRELAYNICK = 573  // from ERR_CANNOTSENDRP in Oragono
 };
 
-class RelayMsgCapTag : public ClientProtocol::MessageTagProvider {
-  private:
-    Cap::Capability& cap;
+// Registers the overdrivenetworks.com/relaymsg
+class RelayMsgCap : public Cap::Capability {
+public:
+    std::string nick_separator;
 
-  public:
-    RelayMsgCapTag(Module* mod, Cap::Capability& Cap)
+    const std::string* GetValue(LocalUser* user) const CXX11_OVERRIDE
+    {
+        return &nick_separator;
+    }
+
+    RelayMsgCap(Module* mod)
+        : Cap::Capability(mod, "overdrivenetworks.com/relaymsg")
+    {
+    }
+};
+
+// Handler for the @relaymsg message tag sent with forwarded PRIVMSGs
+class RelayMsgCapTag : public ClientProtocol::MessageTagProvider {
+private:
+    RelayMsgCap& cap;
+
+public:
+    RelayMsgCapTag(Module* mod, RelayMsgCap& Cap)
         : ClientProtocol::MessageTagProvider(mod)
         , cap(Cap)
     {
@@ -47,9 +66,10 @@ class RelayMsgCapTag : public ClientProtocol::MessageTagProvider {
     }
 };
 
+// Handler for the RELAYMSG command (users and servers)
 class CommandRelayMsg : public Command {
 private:
-    Cap::Capability& cap;
+    RelayMsgCap& cap;
     RelayMsgCapTag& captag;
     std::bitset<UCHAR_MAX> invalid_chars_map;
     std::string invalid_chars = "!+%@&#$:'\"?*,.";
@@ -57,9 +77,8 @@ private:
 public:
     std::string fake_host;
     std::string fake_ident;
-    std::string nick_glob;
 
-    CommandRelayMsg(Module* parent, Cap::Capability& Cap, RelayMsgCapTag& Captag)
+    CommandRelayMsg(Module* parent, RelayMsgCap& Cap, RelayMsgCapTag& Captag)
         : Command(parent, "RELAYMSG", 3, 3)
         , cap(Cap)
         , captag(Captag)
@@ -121,10 +140,10 @@ public:
             }
         }
 
-        // Check that the target nick matches relay nick glob
-        if (IS_LOCAL(user) && !InspIRCd::Match(nick, nick_glob))
+        // Check that the target includes a nick separator
+        if (IS_LOCAL(user) && nick.find(cap.nick_separator) == std::string::npos)
         {
-            user->WriteNumeric(ERR_BADRELAYNICK, nick, InspIRCd::Format("Spoofed nickname must match nickglob %s", nick_glob.c_str()));
+            user->WriteNumeric(ERR_BADRELAYNICK, nick, InspIRCd::Format("Spoofed nickname must include separator %s", cap.nick_separator.c_str()));
             return CMD_FAILURE;
         }
 
@@ -152,13 +171,13 @@ public:
 
 class ModuleRelayMsg : public Module
 {
-    Cap::Capability cap;
+    RelayMsgCap cap;
     RelayMsgCapTag captag;
     CommandRelayMsg cmd;
 
 public:
     ModuleRelayMsg() :
-        cap(this, "overdrivenetworks.com/relaymsg"),
+        cap(this),
         captag(this, cap),
         cmd(this, cap, captag)
     {
@@ -167,7 +186,7 @@ public:
     void ReadConfig(ConfigStatus& status) CXX11_OVERRIDE
     {
         ConfigTag* tag = ServerInstance->Config->ConfValue("relaymsg");
-        cmd.nick_glob = tag->getString("nickglob", "*/*");
+        cap.nick_separator = tag->getString("separator", "/");
         cmd.fake_ident = tag->getString("ident", "relay");
         cmd.fake_host = tag->getString("host", ServerInstance->Config->ServerName);
 
