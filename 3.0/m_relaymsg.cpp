@@ -19,7 +19,7 @@
 /// $ModAuthor: jlu5
 /// $ModAuthorMail: james@overdrivenetworks.com
 /// $ModDepends: core 3
-/// $ModDesc: Provides the RELAYMSG command & overdrivenetworks.com/relaymsg capability for stateless bridging
+/// $ModDesc: Provides the RELAYMSG command & draft/relaymsg capability for stateless bridging
 /// $ModConfig: <relaymsg separators="/" ident="relay" host="relay.example.com">
 //  The "host" option defaults to the local server hostname if not set.
 
@@ -32,7 +32,7 @@ enum
     ERR_BADRELAYNICK = 573  // from ERR_CANNOTSENDRP in Oragono
 };
 
-// Registers the overdrivenetworks.com/relaymsg
+// Registers the draft/relaymsg
 class RelayMsgCap : public Cap::Capability {
 public:
     std::string nick_separators;
@@ -43,7 +43,7 @@ public:
     }
 
     RelayMsgCap(Module* mod)
-        : Cap::Capability(mod, "overdrivenetworks.com/relaymsg")
+        : Cap::Capability(mod, "draft/relaymsg")
     {
     }
 };
