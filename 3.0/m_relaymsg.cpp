@@ -156,8 +156,10 @@ public:
         {
             // Pass the message on to other servers
             CommandBase::Params params;
+            #if INSPIRCD_VERSION_SINCE(3, 8)
             // Preserve other message tags sent with the /relaymsg command
             params.GetTags().insert(parameters.GetTags().begin(), parameters.GetTags().end());
+            #endif
             params.push_back(channame);
             params.push_back(nick);
             params.push_back(":" + text);
